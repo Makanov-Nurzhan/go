@@ -21,14 +21,26 @@ func startSource(ctx context.Context, id int, ch chan string) {
 	}
 }
 
-func fanInMany(channels []<-chan string, merged chan string) {
+func fanInMany(ctx context.Context, channels []<-chan string, merged chan string) {
 	var wg sync.WaitGroup
 	wg.Add(len(channels))
 	for _, ch := range channels {
 		go func(ch <-chan string) {
 			defer wg.Done()
-			for v := range ch {
-				merged <- v
+			for {
+				select {
+				case msg, ok := <-ch:
+					if !ok {
+						return
+					}
+					select {
+					case merged <- msg:
+					case <-ctx.Done():
+						return
+					}
+				case <-ctx.Done():
+					return
+				}
 			}
 		}(ch)
 	}
@@ -56,7 +68,7 @@ func main() {
 		readableSources[i] = ch
 	}
 
-	go fanInMany(readableSources, merged)
+	go fanInMany(ctx, readableSources, merged)
 
 	for v := range merged {
 		fmt.Println(v)

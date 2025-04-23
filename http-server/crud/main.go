@@ -65,13 +65,17 @@ func usersHandler(users *map[int]User, nextID *int) http.Handler {
 			json.NewEncoder(w).Encode(newUser)
 			return
 		case http.MethodPut:
+			if !strings.HasPrefix(r.URL.Path, "/users/") {
+				http.Error(w, "Invalid user id", http.StatusBadRequest)
+				return
+			}
 			idStr := strings.TrimPrefix(r.URL.Path, "/users/")
 			id, err := strconv.Atoi(idStr)
 			if err != nil {
 				http.Error(w, "Invalid user ID", http.StatusBadRequest)
 				return
 			}
-			if _, ok := (*users)[id]; ok {
+			if _, ok := (*users)[id]; !ok {
 				http.Error(w, "User not found", http.StatusNotFound)
 				return
 			}
@@ -89,6 +93,22 @@ func usersHandler(users *map[int]User, nextID *int) http.Handler {
 			w.WriteHeader(http.StatusAccepted)
 			json.NewEncoder(w).Encode(updateUser)
 		case http.MethodDelete:
+			if strings.HasPrefix(r.URL.Path, "/users/") {
+				idStr := strings.TrimPrefix(r.URL.Path, "/users/")
+				id, err := strconv.Atoi(idStr)
+				if err != nil {
+					http.Error(w, "Invalid user ID", http.StatusBadRequest)
+					return
+				}
+				_, ok := (*users)[id]
+				if !ok {
+					http.Error(w, "User not found", http.StatusNotFound)
+					return
+				}
+				delete(*users, id)
+				w.WriteHeader(http.StatusNoContent)
+			}
+
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}

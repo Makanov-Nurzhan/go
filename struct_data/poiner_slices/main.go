@@ -1,1 +1,5 @@
-package poiner_slices
+package main
+
+func main() {
+
+}

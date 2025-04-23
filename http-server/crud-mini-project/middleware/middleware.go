@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"crud-project/auth"
 	"github.com/golang-jwt/jwt/v5"
 	"log"
 	"net/http"
@@ -15,8 +16,6 @@ func LoggingMiddleware(next http.HandlerFunc) http.Handler {
 	})
 }
 
-var jwtSecret = []byte("secretkey")
-
 type contextKey string
 
 const UserIdKey contextKey = "user_id"
@@ -29,23 +28,18 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		tokerStr := strings.TrimPrefix(authHeader, "Bearer ")
-
+		claims := &auth.Claims{}
 		token, err := jwt.Parse(tokerStr, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, jwt.ErrSignatureInvalid
 			}
-			return jwtSecret, nil
+			return auth.JwtSecret, nil
 		})
 		if err != nil || !token.Valid {
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok || claims["user_id"] == nil {
-			http.Error(w, "Invalid claims", http.StatusUnauthorized)
-			return
-		}
-		userID := uint(claims["user_id"].(float64))
+		userID := claims.UserID
 		ctx := context.WithValue(r.Context(), UserIdKey, userID)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
