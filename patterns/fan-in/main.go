@@ -2,51 +2,47 @@ package main
 
 import (
 	"fmt"
-	"sync"
+	"time"
 )
 
-func mergeChannels(channels ...<-chan int) <-chan int {
-	outChannel := make(chan int)
-	var wg sync.WaitGroup
-	wg.Add(len(channels))
-	for _, channel := range channels {
-		go func() {
-			defer wg.Done()
-			for value := range channel {
-				outChannel <- value
-			}
-		}()
+func or[T any](channels ...<-chan T) <-chan T {
+	switch len(channels) {
+	case 0:
+		return nil
+	case 1:
+		return channels[0]
 	}
 
-	go func() {
-		wg.Wait()
-		close(outChannel)
-	}()
+	mid := len(channels) / 2
 
-	return outChannel
+	left := or(channels[:mid]...)  // первая половина
+	right := or(channels[mid:]...) // вторая половина
 
-}
-
-func main() {
-	channel1 := make(chan int)
-	channel2 := make(chan int)
-	channel3 := make(chan int)
+	out := make(chan T)
 
 	go func() {
-		defer func() {
-			close(channel1)
-			close(channel2)
-			close(channel3)
-		}()
-		for i := 0; i < 10; i++ {
-			channel1 <- i
-			channel2 <- i + 1
-			channel3 <- i + 2
+		defer close(out)
+		select {
+		case v := <-left:
+			out <- v
+		case v := <-right:
+			out <- v
 		}
 	}()
 
-	for value := range mergeChannels(channel1, channel2, channel3) {
-		fmt.Println(value)
-	}
+	return out
+}
 
+func main() {
+	start := time.Now()
+
+	<-or(
+		time.After(2*time.Hour),
+		time.After(5*time.Minute),
+		time.After(2*time.Second),
+		time.After(1*time.Hour),
+		time.After(10*time.Second),
+	)
+
+	fmt.Printf("Called after: %s\n", time.Since(start))
 }
