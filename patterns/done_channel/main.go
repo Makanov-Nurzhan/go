@@ -1,31 +1,49 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"reflect"
+	"time"
+)
 
-func process(closeCh <-chan struct{}) <-chan struct{} {
-	closeDoneCh := make(chan struct{})
+func or[T any](channels ...<-chan T) <-chan T {
+	if len(channels) == 0 {
+		return nil
+	}
+	if len(channels) == 1 {
+		return channels[0]
+	}
+
+	doneCh := make(chan T)
 
 	go func() {
-		defer close(closeDoneCh)
-		for {
-			select {
-			case <-closeCh:
-				return
-			default:
-				//processing
+		defer close(doneCh)
+
+		cases := make([]reflect.SelectCase, len(channels))
+		for i, ch := range channels {
+			cases[i] = reflect.SelectCase{
+				Dir:  reflect.SelectRecv,
+				Chan: reflect.ValueOf(ch),
 			}
 		}
+
+		// Ожидаем первое событие
+		_, _, _ = reflect.Select(cases)
 	}()
 
-	return closeDoneCh
+	return doneCh
 }
 
 func main() {
-	closeCh := make(chan struct{})
-	closeDoneCh := process(closeCh)
+	start := time.Now()
 
-	close(closeCh)
-	<-closeDoneCh
+	<-or(
+		time.After(2*time.Hour),
+		time.After(5*time.Minute),
+		time.After(1*time.Second),
+		time.After(1*time.Hour),
+		time.After(10*time.Second),
+	)
 
-	fmt.Println("terminated")
+	fmt.Printf("Called after: %s\n", time.Since(start))
 }
